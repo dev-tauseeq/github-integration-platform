@@ -145,8 +145,13 @@ const repoSchema = new mongoose.Schema({
 // Indexes for performance
 repoSchema.index({ integrationId: 1, fullName: 1 });
 repoSchema.index({ organizationId: 1, name: 1 });
+repoSchema.index({ integrationId: 1, private: 1 }); // For filtering private/public
+repoSchema.index({ integrationId: 1, archived: 1 }); // For filtering archived repos
 repoSchema.index({ language: 1, stargazersCount: -1 });
 repoSchema.index({ syncedAt: -1 });
+repoSchema.index({ integrationId: 1, syncedAt: -1 }); // For retention policy
+repoSchema.index({ pushedAt: -1 }); // For recently updated repos
+repoSchema.index({ createdAt: -1 }); // For recently created repos
 
 const Repo = mongoose.model('Repo', repoSchema);
 

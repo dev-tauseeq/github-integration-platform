@@ -1,4 +1,13 @@
 const { Octokit } = require('@octokit/rest');
+const { retryGitHubCall } = require('../utils/retry.util');
+const { parallelProcessSafe } = require('../utils/batch.util');
+const { safeConsoleError } = require('../utils/error-sanitizer.util');
+
+// Constants
+const MAX_COMMITS_PER_REPO = 1000;
+const MAX_PULLS_PER_REPO = 500;
+const MAX_ISSUES_PER_REPO = 500;
+const MAX_PAGES = 10;
 
 class GitHubApiService {
   constructor(accessToken) {
@@ -13,14 +22,14 @@ class GitHubApiService {
       },
       throttle: {
         onRateLimit: (retryAfter, options, octokit) => {
-          console.warn(`Rate limit hit for ${options.method} ${options.url}`);
+          safeConsoleError(`Rate limit hit for ${options.method} ${options.url}`);
           if (options.request.retryCount < 2) {
             console.log(`Retrying after ${retryAfter} seconds!`);
             return true;
           }
         },
         onSecondaryRateLimit: (retryAfter, options, octokit) => {
-          console.warn(`Secondary rate limit hit for ${options.method} ${options.url}`);
+          safeConsoleError(`Secondary rate limit hit for ${options.method} ${options.url}`);
         }
       }
     });
@@ -123,39 +132,42 @@ class GitHubApiService {
 
   // Get commits for a repository
   async getCommits(owner, repo, since = null, until = null) {
-    try {
-      const commits = [];
-      let page = 1;
-      let hasMore = true;
+    return retryGitHubCall(async () => {
+      try {
+        const commits = [];
+        let page = 1;
+        let hasMore = true;
 
-      const params = {
-        owner,
-        repo,
-        per_page: 100,
-        page
-      };
-
-      if (since) params.since = since;
-      if (until) params.until = until;
-
-      while (hasMore) {
-        const response = await this.octokit.repos.listCommits({
-          ...params,
+        const params = {
+          owner,
+          repo,
+          per_page: 100,
           page
-        });
+        };
 
-        commits.push(...response.data);
-        hasMore = response.data.length === 100;
-        page++;
+        if (since) params.since = since;
+        if (until) params.until = until;
 
-        // Limit to prevent excessive API calls
-        if (page > 10) break;
+        while (hasMore && commits.length < MAX_COMMITS_PER_REPO) {
+          const response = await this.octokit.repos.listCommits({
+            ...params,
+            page
+          });
+
+          commits.push(...response.data);
+          hasMore = response.data.length === 100;
+          page++;
+
+          // Limit to prevent excessive API calls
+          if (page > MAX_PAGES) break;
+        }
+
+        return commits;
+      } catch (error) {
+        safeConsoleError(`Failed to get commits for ${owner}/${repo}:`, error);
+        throw new Error(`Failed to get commits: ${error.message}`);
       }
-
-      return commits;
-    } catch (error) {
-      throw new Error(`Failed to get commits: ${error.message}`);
-    }
+    });
   }
 
   // Get commit details
@@ -174,34 +186,37 @@ class GitHubApiService {
 
   // Get pull requests
   async getPullRequests(owner, repo, state = 'all') {
-    try {
-      const pulls = [];
-      let page = 1;
-      let hasMore = true;
+    return retryGitHubCall(async () => {
+      try {
+        const pulls = [];
+        let page = 1;
+        let hasMore = true;
 
-      while (hasMore) {
-        const response = await this.octokit.pulls.list({
-          owner,
-          repo,
-          state,
-          per_page: 100,
-          page,
-          sort: 'updated',
-          direction: 'desc'
-        });
+        while (hasMore && pulls.length < MAX_PULLS_PER_REPO) {
+          const response = await this.octokit.pulls.list({
+            owner,
+            repo,
+            state,
+            per_page: 100,
+            page,
+            sort: 'updated',
+            direction: 'desc'
+          });
 
-        pulls.push(...response.data);
-        hasMore = response.data.length === 100;
-        page++;
+          pulls.push(...response.data);
+          hasMore = response.data.length === 100;
+          page++;
 
-        // Limit to prevent excessive API calls
-        if (page > 5) break;
+          // Limit to prevent excessive API calls
+          if (page > MAX_PAGES) break;
+        }
+
+        return pulls;
+      } catch (error) {
+        safeConsoleError(`Failed to get pull requests for ${owner}/${repo}:`, error);
+        throw new Error(`Failed to get pull requests: ${error.message}`);
       }
-
-      return pulls;
-    } catch (error) {
-      throw new Error(`Failed to get pull requests: ${error.message}`);
-    }
+    });
   }
 
   // Get pull request details
@@ -220,37 +235,40 @@ class GitHubApiService {
 
   // Get issues
   async getIssues(owner, repo, state = 'all') {
-    try {
-      const issues = [];
-      let page = 1;
-      let hasMore = true;
+    return retryGitHubCall(async () => {
+      try {
+        const issues = [];
+        let page = 1;
+        let hasMore = true;
 
-      while (hasMore) {
-        const response = await this.octokit.issues.listForRepo({
-          owner,
-          repo,
-          state,
-          per_page: 100,
-          page,
-          sort: 'updated',
-          direction: 'desc'
-        });
+        while (hasMore && issues.length < MAX_ISSUES_PER_REPO) {
+          const response = await this.octokit.issues.listForRepo({
+            owner,
+            repo,
+            state,
+            per_page: 100,
+            page,
+            sort: 'updated',
+            direction: 'desc'
+          });
 
-        // Filter out pull requests (GitHub API returns PRs as issues)
-        const filteredIssues = response.data.filter(issue => !issue.pull_request);
-        issues.push(...filteredIssues);
+          // Filter out pull requests (GitHub API returns PRs as issues)
+          const filteredIssues = response.data.filter(issue => !issue.pull_request);
+          issues.push(...filteredIssues);
 
-        hasMore = response.data.length === 100;
-        page++;
+          hasMore = response.data.length === 100;
+          page++;
 
-        // Limit to prevent excessive API calls
-        if (page > 5) break;
+          // Limit to prevent excessive API calls
+          if (page > MAX_PAGES) break;
+        }
+
+        return issues;
+      } catch (error) {
+        safeConsoleError(`Failed to get issues for ${owner}/${repo}:`, error);
+        throw new Error(`Failed to get issues: ${error.message}`);
       }
-
-      return issues;
-    } catch (error) {
-      throw new Error(`Failed to get issues: ${error.message}`);
-    }
+    });
   }
 
   // Get issue details
@@ -269,32 +287,59 @@ class GitHubApiService {
 
   // Get issue timeline/events
   async getIssueTimeline(owner, repo, issueNumber) {
-    try {
-      const events = [];
-      let page = 1;
-      let hasMore = true;
+    return retryGitHubCall(async () => {
+      try {
+        const events = [];
+        let page = 1;
+        let hasMore = true;
 
-      while (hasMore) {
-        const response = await this.octokit.issues.listEventsForTimeline({
-          owner,
-          repo,
-          issue_number: issueNumber,
-          per_page: 100,
-          page
-        });
+        while (hasMore) {
+          const response = await this.octokit.issues.listEventsForTimeline({
+            owner,
+            repo,
+            issue_number: issueNumber,
+            per_page: 100,
+            page
+          });
 
-        events.push(...response.data);
-        hasMore = response.data.length === 100;
-        page++;
+          events.push(...response.data);
+          hasMore = response.data.length === 100;
+          page++;
 
-        // Limit to prevent excessive API calls
-        if (page > 3) break;
+          // Limit to prevent excessive API calls
+          if (page > 3) break;
+        }
+
+        return events;
+      } catch (error) {
+        safeConsoleError(`Failed to get issue timeline for ${owner}/${repo}#${issueNumber}:`, error);
+        throw new Error(`Failed to get issue timeline: ${error.message}`);
       }
+    });
+  }
 
-      return events;
-    } catch (error) {
-      throw new Error(`Failed to get issue timeline: ${error.message}`);
-    }
+  /**
+   * Batch fetch users with concurrency control
+   * @param {Array<string>} usernames - Array of usernames to fetch
+   * @returns {Promise<Object>} Results and errors
+   */
+  async batchGetUsers(usernames) {
+    return parallelProcessSafe(usernames, async (username) => {
+      return await this.getUser(username);
+    });
+  }
+
+  /**
+   * Batch fetch commits with details
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @param {Array<string>} shas - Array of commit SHAs
+   * @returns {Promise<Object>} Results and errors
+   */
+  async batchGetCommitDetails(owner, repo, shas) {
+    return parallelProcessSafe(shas, async (sha) => {
+      return await this.getCommit(owner, repo, sha);
+    });
   }
 
   // Get organization members

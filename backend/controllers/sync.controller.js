@@ -2,10 +2,21 @@ const syncService = require('../services/sync.service');
 const integrationService = require('../services/integration.service');
 const { respondWith } = require('../helpers/response.helper');
 const { AppError } = require('../helpers/error.helper');
+const { syncQueue } = require('../config/queue.config');
+const GitHubApiService = require('../services/github-api.service');
+const { safeConsoleError } = require('../utils/error-sanitizer.util');
 
 class SyncController {
   /**
-   * Trigger full synchronization
+   * Helper to get GitHubApi instance for integration
+   */
+  async getGitHubApi(integrationId) {
+    const integration = await integrationService.getIntegrationById(integrationId);
+    return new GitHubApiService(integration.accessToken);
+  }
+
+  /**
+   * Trigger full synchronization via queue
    * @route POST /api/sync/all
    */
   async syncAll(req, res, next) {
@@ -19,17 +30,26 @@ class SyncController {
       // Verify integration exists
       const integration = await integrationService.getIntegrationById(integrationId);
 
-      // Start sync in background (we'll add queue later)
-      // For now, run synchronously
-      syncService.syncAll(integrationId)
-        .catch(error => {
-          console.error(`Background sync failed for integration ${integrationId}:`, error);
-        });
+      // Add job to queue
+      const job = await syncQueue.add(
+        { integrationId },
+        {
+          priority: 1,
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+          removeOnComplete: 50,
+          removeOnFail: 100,
+        }
+      );
 
-      respondWith(res, 200, {
+      respondWith(res, 202, {
         success: true,
-        message: 'Full synchronization started',
-        integrationId
+        message: 'Full synchronization queued',
+        integrationId,
+        jobId: job.id,
       });
     } catch (error) {
       next(error);

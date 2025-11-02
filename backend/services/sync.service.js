@@ -8,6 +8,9 @@ const issueRepo = require('../repositories/issue.repository');
 const changelogRepo = require('../repositories/changelog.repository');
 const userRepo = require('../repositories/user.repository');
 const mongoose = require('mongoose');
+const { parallelProcessSafe, processBatch } = require('../utils/batch.util');
+const { safeConsoleError, safeConsoleLog } = require('../utils/error-sanitizer.util');
+const { redisClient } = require('../middleware/rate-limit.middleware');
 
 class SyncService {
   constructor() {
@@ -19,17 +22,106 @@ class SyncService {
     return this.syncProgress.get(integrationId) || null;
   }
 
-  // Update sync progress
-  updateSyncProgress(integrationId, progress) {
-    this.syncProgress.set(integrationId, {
+  // Update sync progress (now uses Redis for distributed systems)
+  async updateSyncProgress(integrationId, progress) {
+    const progressData = {
       ...progress,
-      timestamp: new Date()
-    });
+      timestamp: new Date().toISOString()
+    };
+
+    // Store in memory
+    this.syncProgress.set(integrationId, progressData);
+
+    // Store in Redis for distributed systems
+    try {
+      await redisClient.setex(
+        `sync:progress:${integrationId}`,
+        3600, // 1 hour TTL
+        JSON.stringify(progressData)
+      );
+    } catch (error) {
+      safeConsoleError('Failed to update sync progress in Redis:', error);
+    }
+
+    return progressData;
   }
 
   // Clear sync progress
-  clearSyncProgress(integrationId) {
+  async clearSyncProgress(integrationId) {
     this.syncProgress.delete(integrationId);
+
+    try {
+      await redisClient.del(`sync:progress:${integrationId}`);
+    } catch (error) {
+      safeConsoleError('Failed to clear sync progress from Redis:', error);
+    }
+  }
+
+  /**
+   * Sync all with progress reporting (for queue worker)
+   */
+  async syncAllWithProgress(integrationId, job) {
+    const integration = await integrationService.getIntegrationById(integrationId);
+    if (!integration) {
+      throw new Error('Integration not found');
+    }
+
+    const githubApi = new GitHubApiService(integration.accessToken);
+
+    await this.updateSyncProgress(integrationId, {
+      status: 'running',
+      message: 'Starting full sync',
+      current: 0,
+      total: 100
+    });
+
+    // Sync organizations
+    await this.syncOrganizations(integrationId, githubApi);
+    if (job) await job.progress(20);
+
+    // Sync repositories
+    const repos = await repoRepo.findByIntegrationId(integrationId);
+    let current = 0;
+    const total = repos.length;
+
+    for (const repo of repos) {
+      const [owner, repoName] = repo.fullName.split('/');
+
+      // Sync commits, pulls, and issues for each repo
+      await this.syncCommits(integrationId, owner, repoName, githubApi);
+      await this.syncPulls(integrationId, owner, repoName, githubApi);
+      await this.syncIssues(integrationId, owner, repoName, githubApi);
+
+      current++;
+      const progress = 20 + Math.floor((current / total) * 60); // 20% to 80%
+      if (job) await job.progress(progress);
+
+      await this.updateSyncProgress(integrationId, {
+        status: 'running',
+        message: `Syncing repository ${repo.fullName}`,
+        current,
+        total
+      });
+    }
+
+    // Sync users
+    await this.syncUsers(integrationId, githubApi);
+    if (job) await job.progress(90);
+
+    // Update integration last sync time
+    await integrationService.updateLastSync(integrationId);
+
+    await this.updateSyncProgress(integrationId, {
+      status: 'completed',
+      message: 'Sync completed successfully',
+      current: total,
+      total
+    });
+
+    // Clear progress after 5 minutes
+    setTimeout(() => this.clearSyncProgress(integrationId), 5 * 60 * 1000);
+
+    return { success: true, message: 'Full sync completed', repositoriesSynced: total };
   }
 
   // Full sync for an integration
@@ -534,7 +626,7 @@ class SyncService {
     }
   }
 
-  // Sync users
+  // Sync users with batch processing
   async syncUsers(integrationId, githubApi) {
     try {
       const orgs = await organizationRepo.findByIntegrationId(integrationId);
@@ -543,43 +635,52 @@ class SyncService {
         if (org.type === 'Organization') {
           const members = await githubApi.getOrganizationMembers(org.login);
 
-          for (const member of members) {
-            const userDetails = await githubApi.getUser(member.login);
+          // Batch fetch user details
+          const { results: userDetails, errors } = await parallelProcessSafe(
+            members,
+            async (member) => await githubApi.getUser(member.login)
+          );
 
+          if (errors.length > 0) {
+            safeConsoleError(`Failed to fetch ${errors.length} users`);
+          }
+
+          // Save users in batches with transaction
+          for (const userDetail of userDetails) {
             const userData = {
               integrationId: new mongoose.Types.ObjectId(integrationId),
               organizationId: org._id,
-              githubId: userDetails.id,
-              login: userDetails.login,
-              name: userDetails.name,
-              email: userDetails.email,
-              avatarUrl: userDetails.avatar_url,
-              url: userDetails.url,
-              htmlUrl: userDetails.html_url,
-              type: userDetails.type,
-              siteAdmin: userDetails.site_admin,
-              company: userDetails.company,
-              blog: userDetails.blog,
-              location: userDetails.location,
-              bio: userDetails.bio,
-              twitterUsername: userDetails.twitter_username,
-              publicRepos: userDetails.public_repos,
-              publicGists: userDetails.public_gists,
-              followers: userDetails.followers,
-              following: userDetails.following,
-              createdAt: userDetails.created_at,
-              updatedAt: userDetails.updated_at,
+              githubId: userDetail.id,
+              login: userDetail.login,
+              name: userDetail.name,
+              email: userDetail.email,
+              avatarUrl: userDetail.avatar_url,
+              url: userDetail.url,
+              htmlUrl: userDetail.html_url,
+              type: userDetail.type,
+              siteAdmin: userDetail.site_admin,
+              company: userDetail.company,
+              blog: userDetail.blog,
+              location: userDetail.location,
+              bio: userDetail.bio,
+              twitterUsername: userDetail.twitter_username,
+              publicRepos: userDetail.public_repos,
+              publicGists: userDetail.public_gists,
+              followers: userDetail.followers,
+              following: userDetail.following,
+              createdAt: userDetail.created_at,
+              updatedAt: userDetail.updated_at,
               syncedAt: new Date()
             };
 
-            await userRepo.upsertByGithubId(userDetails.id, userData);
+            await userRepo.upsertByGithubId(userDetail.id, userData);
           }
         }
       }
 
       return { success: true, message: 'Users synced' };
     } catch (error) {
-      console.error(`Failed to sync users: ${error.message}`);
+      safeConsoleError(`Failed to sync users:`, error);
       // Don't throw, continue with other syncs
     }
   }

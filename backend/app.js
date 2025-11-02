@@ -118,6 +118,9 @@ app.use('/api/auth', require('./routes/auth.routes'));
 // Sync routes
 app.use('/api/sync', require('./routes/sync.routes'));
 
+// Health check routes
+app.use('/api/health', require('./routes/health.routes'));
+
 // Data routes (placeholder for PR5)
 // app.use('/api/data', require('./routes/data.routes'));
 

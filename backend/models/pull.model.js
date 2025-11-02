@@ -154,8 +154,15 @@ const pullSchema = new mongoose.Schema({
 pullSchema.index({ integrationId: 1, repoId: 1 });
 pullSchema.index({ repoId: 1, number: 1 }, { unique: true });
 pullSchema.index({ repoId: 1, state: 1, createdAt: -1 });
+pullSchema.index({ integrationId: 1, state: 1, updatedAt: -1 }); // For filtering by state
+pullSchema.index({ integrationId: 1, merged: 1, mergedAt: -1 }); // For merged PRs
 pullSchema.index({ 'user.login': 1, state: 1 });
+pullSchema.index({ 'assignees.login': 1 }); // For assignee queries
+pullSchema.index({ 'head.sha': 1 }); // For commit-based queries
+pullSchema.index({ 'base.ref': 1 }); // For branch queries
 pullSchema.index({ syncedAt: -1 });
+pullSchema.index({ integrationId: 1, syncedAt: -1 }); // For retention policy
+pullSchema.index({ mergedAt: 1 }, { sparse: true }); // For merged PR queries
 
 const Pull = mongoose.model('Pull', pullSchema);
 

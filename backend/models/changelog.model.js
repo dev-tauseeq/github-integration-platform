@@ -73,10 +73,12 @@ const changelogSchema = new mongoose.Schema({
 
 // Compound indexes for performance
 changelogSchema.index({ integrationId: 1, issueId: 1 });
+changelogSchema.index({ integrationId: 1, issueId: 1, githubId: 1 }, { unique: true, sparse: true }); // Prevent duplicates
 changelogSchema.index({ issueId: 1, createdAt: -1 });
 changelogSchema.index({ event: 1, createdAt: -1 });
 changelogSchema.index({ 'actor.login': 1 });
 changelogSchema.index({ syncedAt: -1 });
+changelogSchema.index({ integrationId: 1, createdAt: -1 }); // For retention policy
 
 const Changelog = mongoose.model('Changelog', changelogSchema);
 

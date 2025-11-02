@@ -89,7 +89,11 @@ const commitSchema = new mongoose.Schema({
 commitSchema.index({ integrationId: 1, repoId: 1 });
 commitSchema.index({ repoId: 1, 'author.date': -1 });
 commitSchema.index({ 'author.email': 1 });
+commitSchema.index({ 'author.login': 1 });
+commitSchema.index({ 'committer.email': 1 });
 commitSchema.index({ syncedAt: -1 });
+commitSchema.index({ integrationId: 1, 'author.date': -1 }); // For time-based queries
+commitSchema.index({ integrationId: 1, syncedAt: -1 }); // For retention policy
 
 const Commit = mongoose.model('Commit', commitSchema);
 

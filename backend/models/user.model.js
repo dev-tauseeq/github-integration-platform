@@ -93,9 +93,12 @@ const userSchema = new mongoose.Schema({
 
 // Indexes for performance
 userSchema.index({ integrationId: 1, login: 1 });
+userSchema.index({ integrationId: 1, githubId: 1 }, { unique: true, sparse: true }); // Prevent duplicates
 userSchema.index({ organizationId: 1, login: 1 });
-userSchema.index({ email: 1 });
+userSchema.index({ email: 1 }, { sparse: true });
+userSchema.index({ type: 1 }); // For filtering by user type
 userSchema.index({ syncedAt: -1 });
+userSchema.index({ integrationId: 1, syncedAt: -1 }); // For retention policy
 
 const User = mongoose.model('User', userSchema);
 

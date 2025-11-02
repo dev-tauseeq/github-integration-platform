@@ -106,9 +106,13 @@ const issueSchema = new mongoose.Schema({
 issueSchema.index({ integrationId: 1, repoId: 1 });
 issueSchema.index({ repoId: 1, number: 1 }, { unique: true });
 issueSchema.index({ repoId: 1, state: 1, createdAt: -1 });
+issueSchema.index({ integrationId: 1, state: 1, updatedAt: -1 }); // For filtering by state
 issueSchema.index({ 'user.login': 1, state: 1 });
+issueSchema.index({ 'assignees.login': 1 }); // For assignee queries
 issueSchema.index({ 'labels.name': 1 });
 issueSchema.index({ syncedAt: -1 });
+issueSchema.index({ integrationId: 1, syncedAt: -1 }); // For retention policy
+issueSchema.index({ closedAt: 1 }, { sparse: true }); // For closed issues queries
 
 const Issue = mongoose.model('Issue', issueSchema);
 
