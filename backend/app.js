@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
+const session = require('express-session');
 const rateLimit = require('express-rate-limit');
 const config = require('./config/environment');
 const { errorHandler, notFoundHandler } = require('./middleware/error.middleware');
@@ -48,6 +49,18 @@ app.use(cors(corsOptions));
 
 // Compression middleware
 app.use(compression());
+
+// Session middleware (for OAuth state)
+app.use(session({
+  secret: config.jwt.secret || 'your-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: config.env === 'production',
+    httpOnly: true,
+    maxAge: 1000 * 60 * 15, // 15 minutes
+  },
+}));
 
 // Body parser middleware
 app.use(express.json({ limit: '10mb' }));
@@ -96,10 +109,10 @@ app.get('/api', (req, res) => {
   }, 'API Information');
 });
 
-// Auth routes (placeholder for PR2)
-// app.use('/api/auth', require('./routes/auth.routes'));
+// Auth routes
+app.use('/api/auth', require('./routes/auth.routes'));
 
-// Integration routes (placeholder for PR2)
+// Integration routes (placeholder for PR3)
 // app.use('/api/integrations', require('./routes/integration.routes'));
 
 // Sync routes (placeholder for PR4)
