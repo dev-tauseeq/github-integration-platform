@@ -1,0 +1,142 @@
+<div class="connection-status-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-icon mat-card-avatar [color]="getStatusColor()" class="status-icon">
+        {{ getStatusIcon() }}
+      </mat-icon>
+      <mat-card-title>GitHub Integration Status</mat-card-title>
+      <mat-card-subtitle>{{ getStatusText() }}</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content *ngIf="!isLoading">
+      <!-- Check if status exists and is connected -->
+      <div *ngIf="status && status.connected" class="status-details">
+        <!-- User Information -->
+        <div class="info-section" *ngIf="status.username">
+          <h3>User Information</h3>
+          <div class="info-grid">
+            <div class="info-item">
+              <mat-icon>person</mat-icon>
+              <div>
+                <span class="label">Username:</span>
+                <span class="value">{{ status.username }}</span>
+              </div>
+            </div>
+            <div class="info-item" *ngIf="status.email">
+              <mat-icon>email</mat-icon>
+              <div>
+                <span class="label">Email:</span>
+                <span class="value">{{ status.email }}</span>
+              </div>
+            </div>
+            <div class="info-item" *ngIf="status.name">
+              <mat-icon>badge</mat-icon>
+              <div>
+                <span class="label">Name:</span>
+                <span class="value">{{ status.name }}</span>
+              </div>
+            </div>
+            <div class="info-item" *ngIf="status.avatarUrl">
+              <img [src]="status.avatarUrl" alt="Avatar" class="avatar">
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Details -->
+        <div class="info-section">
+          <h3>Connection Details</h3>
+          <div class="info-grid">
+            <div class="info-item">
+              <mat-icon>access_time</mat-icon>
+              <div>
+                <span class="label">Connected:</span>
+                <span class="value">{{ getConnectionDate() }}</span>
+              </div>
+            </div>
+            <div class="info-item">
+              <mat-icon>sync</mat-icon>
+              <div>
+                <span class="label">Last Sync:</span>
+                <span class="value">{{ getLastSyncDate() }}</span>
+              </div>
+            </div>
+            <div class="info-item">
+              <mat-icon>update</mat-icon>
+              <div>
+                <span class="label">Sync Status:</span>
+                <mat-chip [color]="getSyncStatusBadgeColor()" selected>
+                  {{ getSyncStatusText() }}
+                </mat-chip>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Statistics -->
+        <div class="info-section" *ngIf="status.metadata">
+          <h3>Data Statistics</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <mat-icon>folder</mat-icon>
+              <div class="stat-value">{{ status.metadata.totalRepos || 0 }}</div>
+              <div class="stat-label">Repositories</div>
+            </div>
+            <div class="stat-item">
+              <mat-icon>commit</mat-icon>
+              <div class="stat-value">{{ status.metadata.totalCommits || 0 }}</div>
+              <div class="stat-label">Commits</div>
+            </div>
+            <div class="stat-item">
+              <mat-icon>bug_report</mat-icon>
+              <div class="stat-value">{{ status.metadata.totalIssues || 0 }}</div>
+              <div class="stat-label">Issues</div>
+            </div>
+            <div class="stat-item">
+              <mat-icon>merge_type</mat-icon>
+              <div class="stat-value">{{ status.metadata.totalPulls || 0 }}</div>
+              <div class="stat-label">Pull Requests</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rate Limit Information -->
+        <div class="info-section" *ngIf="status.rateLimitInfo">
+          <h3>API Rate Limit</h3>
+          <div class="rate-limit">
+            <div class="rate-limit-text">
+              <span>{{ getRateLimitText() }} requests remaining</span>
+            </div>
+            <mat-progress-bar
+              mode="determinate"
+              [value]="getRateLimitPercentage()"
+              [color]="getRateLimitPercentage() > 20 ? 'primary' : 'warn'"
+            ></mat-progress-bar>
+          </div>
+        </div>
+
+        <!-- Sync Needed Alert -->
+        <mat-card class="sync-alert" *ngIf="status.needsSync">
+          <mat-card-content>
+            <mat-icon color="accent">info</mat-icon>
+            <span>Your data is out of date. Consider running a sync to get the latest information.</span>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      <!-- Not Connected State -->
+      <div *ngIf="!status || !status.connected" class="not-connected">
+        <mat-icon class="large-icon" color="warn">cloud_off</mat-icon>
+        <p>No GitHub integration found</p>
+        <p class="hint">Connect your GitHub account to start syncing your data</p>
+      </div>
+    </mat-card-content>
+
+    <!-- Loading State -->
+    <mat-card-content *ngIf="isLoading">
+      <div class="loading-container">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Loading status...</p>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

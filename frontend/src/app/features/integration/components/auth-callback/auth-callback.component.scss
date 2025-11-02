@@ -1,0 +1,81 @@
+.auth-callback-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  padding: 24px;
+
+  .callback-card {
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .processing-content,
+  .success-content,
+  .error-content {
+    padding: 48px 24px;
+
+    h2 {
+      font-size: 24px;
+      font-weight: 500;
+      margin: 24px 0 16px;
+      color: rgba(0, 0, 0, 0.87);
+    }
+
+    p {
+      font-size: 16px;
+      color: rgba(0, 0, 0, 0.6);
+      margin: 8px 0;
+    }
+
+    .large-icon {
+      font-size: 72px;
+      width: 72px;
+      height: 72px;
+      margin: 0 auto;
+
+      &.success-icon {
+        color: #4caf50;
+      }
+
+      &.error-icon {
+        color: #f44336;
+      }
+    }
+  }
+
+  .processing-content {
+    mat-spinner {
+      margin: 0 auto 24px;
+    }
+  }
+
+  .success-content {
+    mat-progress-bar {
+      margin-top: 24px;
+    }
+  }
+
+  .error-content {
+    .error-message {
+      color: #f44336;
+      font-weight: 500;
+      margin: 16px 0 24px;
+      padding: 12px;
+      background: #ffebee;
+      border-radius: 4px;
+    }
+
+    .error-actions {
+      margin-top: 24px;
+
+      button {
+        mat-icon {
+          margin-right: 8px;
+        }
+      }
+    }
+  }
+}

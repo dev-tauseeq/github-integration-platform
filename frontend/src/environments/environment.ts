@@ -1,6 +1,10 @@
+/**
+ * Development environment configuration
+ */
 export const environment = {
   production: false,
   apiUrl: 'http://localhost:3000/api',
+  apiTimeout: 30000,
   appName: 'GitHub Integration',
   appVersion: '1.0.0',
   github: {

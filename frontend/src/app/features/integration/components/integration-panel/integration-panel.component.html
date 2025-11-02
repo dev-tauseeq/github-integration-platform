@@ -1,0 +1,161 @@
+<div class="integration-panel-container">
+  <mat-expansion-panel [(expanded)]="panelOpenState" class="integration-panel">
+    <mat-expansion-panel-header>
+      <mat-panel-title>
+        <mat-icon>hub</mat-icon>
+        GitHub Integration
+      </mat-panel-title>
+      <mat-panel-description>
+        <ng-container *ngIf="isConnected(); else notConnected">
+          <mat-icon color="primary" class="status-icon">check_circle</mat-icon>
+          <span *ngIf="integrationStatus && integrationStatus.username">Connected as {{ integrationStatus.username }}</span>
+          <span *ngIf="!integrationStatus || !integrationStatus.username">Connected</span>
+        </ng-container>
+        <ng-template #notConnected>
+          <mat-icon color="warn" class="status-icon">cancel</mat-icon>
+          Not connected
+        </ng-template>
+      </mat-panel-description>
+    </mat-expansion-panel-header>
+
+    <!-- Panel Content -->
+    <div class="panel-content">
+      <!-- Connected State -->
+      <div *ngIf="isConnected()" class="connected-content">
+        <!-- Quick Stats -->
+        <div class="quick-stats" *ngIf="integrationStatus && integrationStatus.metadata">
+          <div class="stat-chip">
+            <mat-icon>folder</mat-icon>
+            <span>{{ integrationStatus.metadata.totalRepos || 0 }} Repos</span>
+          </div>
+          <div class="stat-chip">
+            <mat-icon>commit</mat-icon>
+            <span>{{ integrationStatus.metadata.totalCommits || 0 }} Commits</span>
+          </div>
+          <div class="stat-chip">
+            <mat-icon>bug_report</mat-icon>
+            <span>{{ integrationStatus.metadata.totalIssues || 0 }} Issues</span>
+          </div>
+          <div class="stat-chip">
+            <mat-icon>merge_type</mat-icon>
+            <span>{{ integrationStatus.metadata.totalPulls || 0 }} PRs</span>
+          </div>
+        </div>
+
+        <!-- Connection Info -->
+        <div class="connection-info">
+          <div class="info-row" *ngIf="integrationStatus && integrationStatus.connectedAt">
+            <span class="label">Connected:</span>
+            <span class="value">{{ integrationStatus.connectedAt | date:'medium' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Last Sync:</span>
+            <span class="value">
+              <ng-container *ngIf="integrationStatus && integrationStatus.lastSyncAt; else never">
+                {{ integrationStatus.lastSyncAt | date:'medium' }}
+              </ng-container>
+              <ng-template #never>Never</ng-template>
+            </span>
+          </div>
+          <div class="info-row" *ngIf="integrationStatus && integrationStatus.rateLimitInfo">
+            <span class="label">API Rate Limit:</span>
+            <span class="value">
+              {{ integrationStatus.rateLimitInfo.remaining }} / {{ integrationStatus.rateLimitInfo.limit }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Sync Progress -->
+        <div class="sync-progress" *ngIf="syncProgress">
+          <p>{{ getSyncProgressText() }}</p>
+          <mat-progress-bar
+            mode="determinate"
+            [value]="getSyncProgressValue()"
+            color="accent"
+          ></mat-progress-bar>
+        </div>
+
+        <!-- Sync Alert -->
+        <div class="sync-alert" *ngIf="integrationStatus && integrationStatus.needsSync && !syncProgress">
+          <mat-icon color="accent">info</mat-icon>
+          <span>Your data is out of date. Consider running a sync.</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          <button
+            mat-raised-button
+            color="primary"
+            (click)="resyncData()"
+            [disabled]="!canSync()"
+          >
+            <mat-icon>sync</mat-icon>
+            {{ getSyncButtonText() }}
+          </button>
+
+          <button mat-button (click)="refreshStatus()" [disabled]="isLoading">
+            <mat-icon>refresh</mat-icon>
+            Refresh Status
+          </button>
+
+          <button mat-button color="warn" (click)="disconnectGitHub()" [disabled]="isLoading">
+            <mat-icon>link_off</mat-icon>
+            Disconnect
+          </button>
+        </div>
+      </div>
+
+      <!-- Not Connected State -->
+      <div *ngIf="!isConnected()" class="not-connected-content">
+        <div class="empty-state">
+          <mat-icon class="large-icon">cloud_off</mat-icon>
+          <h3>Connect Your GitHub Account</h3>
+          <p>Connect your GitHub account to start syncing your repositories, commits, issues, and pull requests.</p>
+
+          <div class="benefits">
+            <h4>Benefits of connecting:</h4>
+            <ul>
+              <li>
+                <mat-icon>check</mat-icon>
+                Automatic synchronization of all your GitHub data
+              </li>
+              <li>
+                <mat-icon>check</mat-icon>
+                Track repositories, commits, issues, and pull requests
+              </li>
+              <li>
+                <mat-icon>check</mat-icon>
+                Visualize your data with powerful filtering and search
+              </li>
+              <li>
+                <mat-icon>check</mat-icon>
+                Monitor organization-wide activity and contributions
+              </li>
+            </ul>
+          </div>
+
+          <button
+            mat-raised-button
+            color="primary"
+            size="large"
+            (click)="connectGitHub()"
+            [disabled]="isLoading"
+            class="connect-button"
+          >
+            <mat-icon>link</mat-icon>
+            Connect GitHub Account
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading Overlay -->
+      <div class="loading-overlay" *ngIf="isLoading && !syncProgress">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Processing...</p>
+      </div>
+    </div>
+  </mat-expansion-panel>
+
+  <!-- Detailed Status Component -->
+  <app-connection-status *ngIf="isConnected()"></app-connection-status>
+</div>

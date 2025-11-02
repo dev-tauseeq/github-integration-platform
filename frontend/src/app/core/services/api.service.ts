@@ -4,6 +4,18 @@ import { Observable, throwError } from 'rxjs';
 import { catchError, retry } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
+/**
+ * HTTP options interface for flexible request configuration
+ */
+export interface HttpOptions {
+  headers?: HttpHeaders | { [header: string]: string | string[] };
+  observe?: 'body' | 'response';
+  params?: HttpParams | { [param: string]: string | string[] };
+  reportProgress?: boolean;
+  responseType?: 'json' | 'text' | 'blob' | 'arraybuffer';
+  withCredentials?: boolean;
+}
+
 export interface ApiResponse<T = any> {
   success: boolean;
   message: string;
@@ -38,7 +50,7 @@ export class ApiService {
   }
 
   // POST request
-  post<T>(endpoint: string, body: any, options?: any): Observable<T> {
+  post<T>(endpoint: string, body: any, options?: HttpOptions): Observable<T> {
     return this.http.post<T>(`${this.baseUrl}${endpoint}`, body, options)
       .pipe(
         catchError(this.handleError)
@@ -46,7 +58,7 @@ export class ApiService {
   }
 
   // PUT request
-  put<T>(endpoint: string, body: any, options?: any): Observable<T> {
+  put<T>(endpoint: string, body: any, options?: HttpOptions): Observable<T> {
     return this.http.put<T>(`${this.baseUrl}${endpoint}`, body, options)
       .pipe(
         catchError(this.handleError)
@@ -54,7 +66,7 @@ export class ApiService {
   }
 
   // PATCH request
-  patch<T>(endpoint: string, body: any, options?: any): Observable<T> {
+  patch<T>(endpoint: string, body: any, options?: HttpOptions): Observable<T> {
     return this.http.patch<T>(`${this.baseUrl}${endpoint}`, body, options)
       .pipe(
         catchError(this.handleError)
@@ -62,7 +74,7 @@ export class ApiService {
   }
 
   // DELETE request
-  delete<T>(endpoint: string, options?: any): Observable<T> {
+  delete<T>(endpoint: string, options?: HttpOptions): Observable<T> {
     return this.http.delete<T>(`${this.baseUrl}${endpoint}`, options)
       .pipe(
         catchError(this.handleError)
@@ -70,7 +82,7 @@ export class ApiService {
   }
 
   // Upload file
-  upload<T>(endpoint: string, file: File, additionalData?: any): Observable<T> {
+  upload<T>(endpoint: string, file: File, additionalData?: Record<string, any>): Observable<T> {
     const formData = new FormData();
     formData.append('file', file, file.name);
 
@@ -81,8 +93,7 @@ export class ApiService {
     }
 
     return this.http.post<T>(`${this.baseUrl}${endpoint}`, formData, {
-      reportProgress: true,
-      observe: 'events' as any
+      reportProgress: true
     }).pipe(
       catchError(this.handleError)
     );
