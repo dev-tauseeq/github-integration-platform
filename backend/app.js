@@ -115,8 +115,8 @@ app.use('/api/auth', require('./routes/auth.routes'));
 // Integration routes (placeholder for PR3)
 // app.use('/api/integrations', require('./routes/integration.routes'));
 
-// Sync routes (placeholder for PR4)
-// app.use('/api/sync', require('./routes/sync.routes'));
+// Sync routes
+app.use('/api/sync', require('./routes/sync.routes'));
 
 // Data routes (placeholder for PR5)
 // app.use('/api/data', require('./routes/data.routes'));

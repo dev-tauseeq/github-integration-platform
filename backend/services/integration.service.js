@@ -276,6 +276,32 @@ class IntegrationService {
       throw new AppError('Failed to fetch user profile from GitHub', 500);
     }
   }
+
+  /**
+   * Get integration by ID
+   * @param {string} integrationId - Integration ObjectId
+   * @returns {Promise<Object>} Integration document
+   */
+  async getIntegrationById(integrationId) {
+    const integration = await integrationRepository.findById(integrationId);
+    if (!integration) {
+      throw new AppError('Integration not found', 404);
+    }
+    return integration;
+  }
+
+  /**
+   * Update last sync timestamp
+   * @param {string} integrationId - Integration ObjectId
+   * @returns {Promise<Object>} Updated integration
+   */
+  async updateLastSync(integrationId) {
+    return await integrationRepository.updateById(integrationId, {
+      lastSyncAt: new Date(),
+      needsSync: false,
+      syncStatus: 'completed'
+    });
+  }
 }
 
 module.exports = new IntegrationService();
