@@ -24,16 +24,6 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Testing
-coverage/
-*.lcov
-.nyc_output/
-
-# Production builds
-dist/
-build/
-*.dist
-
 # Angular specific
 frontend/.angular/
 frontend/.sass-cache/
@@ -47,9 +37,6 @@ temp/
 # MongoDB
 *.lock
 *.pid
-
-# Plan file - Exclude from repository
-github-integration-implementation-plan.md
 
 # OS files
 Thumbs.db
